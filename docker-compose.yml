@@ -1,7 +1,7 @@
 services:
   caddy:
     # Internal: listens on :80 (public, http) and :443 (public, https).
-    # Proxies <service>.home -> service:<port> via the homelab network.
+    # Proxies <service>.homelab.less -> service:<port> via the homelab network.
     image: caddy:2.11
     container_name: caddy
     restart: unless-stopped
@@ -44,7 +44,7 @@ services:
       start_period: 5s
 
   stirling-pdf:
-    # Internal port: 8080 (proxied by Caddy as pdf.home)
+    # Internal port: 8080 (proxied by Caddy as pdf.homelab.less)
     image: stirlingtools/stirling-pdf:2.13.1
     container_name: stirling-pdf
     restart: unless-stopped
@@ -68,7 +68,7 @@ services:
       - homelab
 
   uptime-kuma:
-    # Internal port: 3001 (proxied by Caddy as status.home)
+    # Internal port: 3001 (proxied by Caddy as status.homelab.less)
     image: louislam/uptime-kuma:2
     container_name: uptime-kuma
     restart: unless-stopped
@@ -89,7 +89,7 @@ services:
       - homelab
 
   it-tools:
-    # Internal port: 80 (proxied by Caddy as tools.home)
+    # Internal port: 80 (proxied by Caddy as tools.homelab.less)
     # Stateless toolbox for dev. No DB, no login.
     image: corentinth/it-tools:2024.10.22-7ca5933
     container_name: it-tools
@@ -104,7 +104,7 @@ services:
       - homelab
 
   portainer:
-    # Internal port: 9000 (proxied by Caddy as portainer.home)
+    # Internal port: 9000 (proxied by Caddy as portainer.homelab.less)
     # Web UI for managing Docker containers, images, volumes, networks.
     # Mounts the Docker socket to control the daemon. Required for the
     # app to function; gives Portainer root-equivalent control.
@@ -133,7 +133,7 @@ services:
 
   homepage:
     # Internal port: 3000. NOT published to the host — access is via Caddy
-    # at https://dash.home. Caddy reaches the container by name on the
+    # at https://dash.homelab.less. Caddy reaches the container by name on the
     # homelab network, so no host port is needed.
     image: gethomepage/homepage:v1.13.2
     container_name: homepage
@@ -141,7 +141,7 @@ services:
     environment:
       # Allow Host header validation. Add every hostname that Caddy
       # proxies to Homepage.
-      - HOMEPAGE_ALLOWED_HOSTS=dash.home
+      - HOMEPAGE_ALLOWED_HOSTS=dash.homelab.less
       # Mount the mkcert root CA so HTTPS siteMonitor checks work.
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/mkcert-rootCA.crt
       # Map HOMEPAGE_VAR_PORTAINER_KEY from the host's PORTAINER_API_KEY
@@ -156,14 +156,14 @@ services:
       # Restart required after adding new images (Next.js limitation).
       - ./homepage/images:/app/public/images:ro
     extra_hosts:
-      # Map all .home hostnames to the WSL host IP so the Homepage
+      # Map all .homelab.less hostnames to the WSL host IP so the Homepage
       # siteMonitor can reach them via the public mkcert certs.
-      - "dash.home:${WSL_HOST_IP}"
-      - "pdf.home:${WSL_HOST_IP}"
-      - "status.home:${WSL_HOST_IP}"
-      - "tools.home:${WSL_HOST_IP}"
-      - "portainer.home:${WSL_HOST_IP}"
-      - "odysseus.home:${WSL_HOST_IP}"
+      - "dash.homelab.less:${WSL_HOST_IP}"
+      - "pdf.homelab.less:${WSL_HOST_IP}"
+      - "status.homelab.less:${WSL_HOST_IP}"
+      - "tools.homelab.less:${WSL_HOST_IP}"
+      - "portainer.homelab.less:${WSL_HOST_IP}"
+      - "odysseus.homelab.less:${WSL_HOST_IP}"
     healthcheck:
       test:
         [
@@ -181,10 +181,38 @@ services:
     networks:
       - homelab
 
+  authelia:
+    # Internal port: 9091. Proxied by Caddy as login.homelab.less.
+    # Single Go binary + SQLite. Gates every *.homelab.less vhost via Caddy
+    # forward_auth. Session cookie set on parent domain '.homelab.less' so one
+    # login covers all .homelab.less routes.
+    image: authelia/authelia:4.39.20
+    container_name: authelia
+    restart: unless-stopped
+    # Secrets from .env (gitignored) — substituted into configuration.yml
+    # via ${VAR} syntax. All three are sensitive; do not commit values.
+    environment:
+      - AUTHELIA_JWT_SECRET=${AUTHELIA_JWT_SECRET}
+      - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET}
+      - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY}
+    volumes:
+      - ./authelia/configuration.yml:/config/configuration.yml:ro
+      - ./authelia/users.yml:/config/users.yml:ro
+      - authelia_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9091/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - homelab
+
 volumes:
   caddy_data:
   caddy_config:
   portainer_data:
+  authelia_data:
 
 networks:
   homelab:

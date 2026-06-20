@@ -4,11 +4,11 @@
 
 - Management:
     - Portainer:
-        href: https://portainer.home
+        href: https://portainer.homelab.less
         description: Docker management
         icon: portainer
-        siteMonitor: https://portainer.home
-        ping: https://portainer.home
+        siteMonitor: https://portainer.homelab.less
+        ping: https://portainer.homelab.less
         widget:
           type: portainer
           url: http://portainer:9000
@@ -20,41 +20,41 @@
           # on the Homepage container (set in docker-compose.yml).
           key: "{{HOMEPAGE_VAR_PORTAINER_KEY}}"
     - Uptime Kuma:
-        href: https://status.home
+        href: https://status.homelab.less
         description: Uptime monitor
         icon: uptime-kuma
-        siteMonitor: https://status.home
-        ping: https://status.home
+        siteMonitor: https://status.homelab.less
+        ping: https://status.homelab.less
         widget:
           type: uptimekuma
-          url: https://status.home
+          url: https://status.homelab.less
           slug: homelab
     - Caddy:
-        href: https://dash.home
+        href: https://dash.homelab.less
         description: Reverse proxy
         icon: caddy
-        siteMonitor: https://dash.home
-        ping: https://dash.home
+        siteMonitor: https://dash.homelab.less
+        ping: https://dash.homelab.less
         widget:
           type: caddy
           url: http://caddy:2019
 
 - Tools:
     - Stirling-PDF:
-        href: https://pdf.home
+        href: https://pdf.homelab.less
         description: PDF tools
         icon: mdi-file-pdf-box
-        siteMonitor: https://pdf.home
-        ping: https://pdf.home
+        siteMonitor: https://pdf.homelab.less
+        ping: https://pdf.homelab.less
     - IT-Tools:
-        href: https://tools.home
+        href: https://tools.homelab.less
         description: Dev toolbox
         icon: it-tools
-        siteMonitor: https://tools.home
-        ping: https://tools.home
+        siteMonitor: https://tools.homelab.less
+        ping: https://tools.homelab.less
     - Odysseus:
-        href: https://odysseus.home
+        href: https://odysseus.homelab.less
         description: AI workspace
         icon: odysseus
-        siteMonitor: https://odysseus.home
-        ping: https://odysseus.home
+        siteMonitor: https://odysseus.homelab.less
+        ping: https://odysseus.homelab.less

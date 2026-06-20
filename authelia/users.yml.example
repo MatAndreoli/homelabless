@@ -1,0 +1,6 @@
+users:
+  <your-username>:
+    displayname: '<Your Name>'
+    # Generate bcrypt hash with: htpasswd -nbBC 10 "" '<password>' | tr -d ':\n'
+    password: '$2a$10$REPLACE_WITH_REAL_BCRYPT_HASH'
+    email: '<you@example.com>'

@@ -14,64 +14,108 @@
     }
 }
 
+# Authelia forward-auth gate. Import into any vhost that needs login.
+# Reads session cookie sent by Authelia (set on parent domain
+# 'homelab.less', covers all *.homelab.less). If invalid, Authelia returns
+# 302 to https://login.homelab.less/?rd=<original-url>. If valid,
+# Authelia returns 200 and we copy identity headers to the backend.
+(authelia) {
+    forward_auth authelia:9091 {
+        uri /api/authz/forward-auth
+        copy_headers X-Forwarded-Method X-Forwarded-Uri X-Forwarded-For
+
+        @good status 2xx
+        handle_response @good {
+            request_header X-Forwarded-User {http.reverse_proxy.header.X-Forwarded-User}
+            request_header X-Forwarded-Groups {http.reverse_proxy.header.X-Forwarded-Groups}
+            request_header X-Forwarded-Email {http.reverse_proxy.header.X-Forwarded-Email}
+        }
+    }
+}
+
 # HTTP: redirect everything to HTTPS
-http://pdf.home {
-    redir https://pdf.home{uri} permanent
+http://pdf.homelab.less {
+    redir https://pdf.homelab.less{uri} permanent
 }
-http://dash.home {
-    redir https://dash.home{uri} permanent
+http://dash.homelab.less {
+    redir https://dash.homelab.less{uri} permanent
 }
-http://odysseus.home {
-    redir https://odysseus.home{uri} permanent
+http://odysseus.homelab.less {
+    redir https://odysseus.homelab.less{uri} permanent
 }
-http://status.home {
-    redir https://status.home{uri} permanent
+http://status.homelab.less {
+    redir https://status.homelab.less{uri} permanent
 }
-http://tools.home {
-    redir https://tools.home{uri} permanent
+http://tools.homelab.less {
+    redir https://tools.homelab.less{uri} permanent
 }
-http://portainer.home {
-    redir https://portainer.home{uri} permanent
+http://portainer.homelab.less {
+    redir https://portainer.homelab.less{uri} permanent
+}
+http://login.homelab.less {
+    redir https://login.homelab.less{uri} permanent
 }
 
 # HTTPS: actual reverse proxy
-https://pdf.home {
+https://login.homelab.less {
     import secure_headers
-    tls /certs/pdf.home.pem /certs/pdf.home.key
+    tls /certs/login.homelab.less.pem /certs/login.homelab.less.key
+    reverse_proxy authelia:9091
+}
+
+https://pdf.homelab.less {
+    import secure_headers
+    tls /certs/pdf.homelab.less.pem /certs/pdf.homelab.less.key
+    import authelia
     reverse_proxy stirling-pdf:8080
 }
 
-https://dash.home {
+https://dash.homelab.less {
     import secure_headers
-    tls /certs/dash.home.pem /certs/dash.home.key
+    tls /certs/dash.homelab.less.pem /certs/dash.homelab.less.key
+    import authelia
     reverse_proxy homepage:3000
 }
 
-https://odysseus.home {
+https://odysseus.homelab.less {
     import secure_headers
-    tls /certs/odysseus.home.pem /certs/odysseus.home.key
+    tls /certs/odysseus.homelab.less.pem /certs/odysseus.homelab.less.key
     # Odysseus runs on the WSL host (not in this compose stack).
     # The {{WSL_HOST_IP}} placeholder is replaced at container start
     # by caddy/entrypoint.sh using the WSL_HOST_IP env var (set via
     # .env -> docker-compose.yml). Same value must be set in Windows
     # %SystemRoot%\System32\drivers\etc\hosts.
+    import authelia
     reverse_proxy {{WSL_HOST_IP}}:7000
 }
 
-https://status.home {
+https://status.homelab.less {
     import secure_headers
-    tls /certs/status.home.pem /certs/status.home.key
-    reverse_proxy uptime-kuma:3001
+    tls /certs/status.homelab.less.pem /certs/status.homelab.less.key
+
+    # Public endpoints (no auth) — status page, badges, incidents, heartbeat
+    @public path /api/status-page/* /api/badge/* /api/incidents/* /api/heartbeat/*
+    handle @public {
+        reverse_proxy uptime-kuma:3001
+    }
+
+    # Everything else requires auth
+    handle {
+        import authelia
+        reverse_proxy uptime-kuma:3001
+    }
 }
 
-https://tools.home {
+https://tools.homelab.less {
     import secure_headers
-    tls /certs/tools.home.pem /certs/tools.home.key
+    tls /certs/tools.homelab.less.pem /certs/tools.homelab.less.key
+    import authelia
     reverse_proxy it-tools:80
 }
 
-https://portainer.home {
+https://portainer.homelab.less {
     import secure_headers
-    tls /certs/portainer.home.pem /certs/portainer.home.key
+    tls /certs/portainer.homelab.less.pem /certs/portainer.homelab.less.key
+    import authelia
     reverse_proxy portainer:9000
 }
