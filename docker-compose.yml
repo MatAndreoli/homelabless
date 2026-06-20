@@ -78,23 +78,22 @@ services:
       - homelab
 
   homepage:
-    # Internal port: 3000 (exposed directly on 3030 for local testing,
-    # bypassing Caddy for now so you can evaluate before wiring it up).
+    # Internal port: 3000. NOT published to the host — access is via Caddy
+    # at https://dash.home. Caddy reaches the container by name on the
+    # homelab network, so no host port is needed.
     image: ghcr.io/gethomepage/homepage:latest
     container_name: homepage
     restart: unless-stopped
     environment:
       # Allow Host header validation. Add every hostname that Caddy
-      # proxies to Homepage (and localhost for direct testing on :3030).
-      - HOMEPAGE_ALLOWED_HOSTS=localhost:3030,127.0.0.1:3030,dash.home
+      # proxies to Homepage.
+      - HOMEPAGE_ALLOWED_HOSTS=dash.home
       # Mount the mkcert root CA so HTTPS siteMonitor checks work.
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/mkcert-rootCA.crt
       # Map HOMEPAGE_VAR_PORTAINER_KEY from the host's PORTAINER_API_KEY
       # (defined in .env). Homepage interpolates {{HOMEPAGE_VAR_PORTAINER_KEY}}
       # in services.yaml at config-load time.
       - HOMEPAGE_VAR_PORTAINER_KEY=${PORTAINER_API_KEY}
-    ports:
-      - "3030:3000"
     volumes:
       - ./homepage:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
