@@ -5,36 +5,29 @@ services:
     image: caddy:2.11
     container_name: caddy
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "/etc/caddy/entrypoint.sh"]
+    command: []
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/entrypoint.sh:/etc/caddy/entrypoint.sh:ro
       - ./certs:/certs:ro
       - caddy_data:/data
       - caddy_config:/config
+    environment:
+      # WSL host IP — interpolated by caddy/entrypoint.sh into the
+      # Caddyfile's {{WSL_HOST_IP}} placeholders.
+      - WSL_HOST_IP=${WSL_HOST_IP}
     networks:
       - homelab
     extra_hosts:
       # Lets Caddy reach services running on the WSL host (Odysseus).
-      # Replace 172.27.95.84 with your WSL eth0 IP if it changes
-      # (run `hostname -I` in WSL to check). Same IP must also be set
-      # in Windows %SystemRoot%\System32\drivers\etc\hosts.
+      # Same value as WSL_HOST_IP in .env; same must be set in Windows
+      # %SystemRoot%\System32\drivers\etc\hosts.
       - "host.docker.internal:host-gateway"
-      - "host.docker.internal:172.27.95.84"
-
-  homarr:
-    # Internal port: 7575 (proxied by Caddy as dash.home)
-    image: ghcr.io/homarr-labs/homarr:latest
-    container_name: homarr
-    restart: unless-stopped
-    environment:
-      - SECRET_ENCRYPTION_KEY=${SECRET_ENCRYPTION_KEY}
-      - ALLOWED_ORIGINS=https://dash.home
-    volumes:
-      - ./homarr-data:/app/data
-    networks:
-      - homelab
+      - "host.docker.internal:${WSL_HOST_IP}"
 
   stirling-pdf:
     # Internal port: 8080 (proxied by Caddy as pdf.home)
@@ -81,6 +74,43 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
+    networks:
+      - homelab
+
+  homepage:
+    # Internal port: 3000 (exposed directly on 3030 for local testing,
+    # bypassing Caddy for now so you can evaluate before wiring it up).
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    environment:
+      # Allow Host header validation. Add every hostname that Caddy
+      # proxies to Homepage (and localhost for direct testing on :3030).
+      - HOMEPAGE_ALLOWED_HOSTS=localhost:3030,127.0.0.1:3030,dash.home
+      # Mount the mkcert root CA so HTTPS siteMonitor checks work.
+      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/mkcert-rootCA.crt
+      # Map HOMEPAGE_VAR_PORTAINER_KEY from the host's PORTAINER_API_KEY
+      # (defined in .env). Homepage interpolates {{HOMEPAGE_VAR_PORTAINER_KEY}}
+      # in services.yaml at config-load time.
+      - HOMEPAGE_VAR_PORTAINER_KEY=${PORTAINER_API_KEY}
+    ports:
+      - "3030:3000"
+    volumes:
+      - ./homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs/rootCA.pem:/usr/local/share/ca-certificates/mkcert-rootCA.crt:ro
+      # Mount background images into Homepage's static public dir.
+      # Restart required after adding new images (Next.js limitation).
+      - ./homepage/images:/app/public/images:ro
+    extra_hosts:
+      # Map all .home hostnames to the WSL host IP so the Homepage
+      # siteMonitor can reach them via the public mkcert certs.
+      - "dash.home:${WSL_HOST_IP}"
+      - "pdf.home:${WSL_HOST_IP}"
+      - "status.home:${WSL_HOST_IP}"
+      - "tools.home:${WSL_HOST_IP}"
+      - "portainer.home:${WSL_HOST_IP}"
+      - "odysseus.home:${WSL_HOST_IP}"
     networks:
       - homelab
 

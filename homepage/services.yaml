@@ -1,0 +1,60 @@
+---
+# For configuration options and examples, please see:
+# https://gethomepage.dev/configs/services/
+
+- Management:
+    - Portainer:
+        href: https://portainer.home
+        description: Docker management
+        icon: portainer
+        siteMonitor: https://portainer.home
+        ping: https://portainer.home
+        widget:
+          type: portainer
+          url: http://portainer:9000
+          # env = Portainer endpoint ID (visible in Portainer UI under
+          # Environments, in the URL fragment e.g. #!/endpoints/3 -> 3)
+          env: 3
+          # Set kubernetes: true if your Portainer endpoint is Kubernetes
+          # The key is interpolated from HOMEPAGE_VAR_PORTAINER_KEY env var
+          # on the Homepage container (set in docker-compose.yml).
+          key: "{{HOMEPAGE_VAR_PORTAINER_KEY}}"
+    - Uptime Kuma:
+        href: https://status.home
+        description: Uptime monitor
+        icon: uptime-kuma
+        siteMonitor: https://status.home
+        ping: https://status.home
+        widget:
+          type: uptimekuma
+          url: https://status.home
+          slug: homelab
+    - Caddy:
+        href: https://dash.home
+        description: Reverse proxy
+        icon: caddy
+        siteMonitor: https://dash.home
+        ping: https://dash.home
+        widget:
+          type: caddy
+          url: http://caddy:2019
+
+- Tools:
+    - Stirling-PDF:
+        href: https://pdf.home
+        description: PDF tools
+        icon: mdi-file-pdf-box
+        siteMonitor: https://pdf.home
+        ping: https://pdf.home
+    - IT-Tools:
+        href: https://tools.home
+        description: Dev toolbox
+        icon: it-tools
+        siteMonitor: https://tools.home
+        ping: https://tools.home
+    - Odysseus:
+        href: https://odysseus.home
+        description: AI workspace
+        icon: odysseus
+        siteMonitor: https://odysseus.home
+        ping: https://odysseus.home

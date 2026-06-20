@@ -1,0 +1,39 @@
+---
+# For configuration options and examples, please see:
+# https://gethomepage.dev/configs/settings/
+
+title: Homelab
+# Background image: a sharp image as the page backdrop.
+# Note: cardBlur (below) is incompatible with background.blur,
+# so do NOT set background.blur when using cardBlur.
+background:
+  image: /images/blossom_valley.jpg
+  opacity: 50
+
+# Glass effect on the service / bookmark / widget cards.
+# Valid Tailwind values: sm, md, lg, xl, 2xl, 3xl.
+# (Note: Homepage's doc mentions "xs" but Tailwind doesn't have one —
+# the minimum valid value is "sm".)
+cardBlur: lg
+
+theme: dark
+color: slate
+headerStyle: boxed
+
+favicon: https://gethomepage.dev/assets/favicon.ico
+
+providers:
+  openweathermap: openweathermapapikey
+  weatherapi: weatherapiapikey
+
+useEqualHeights: true
+
+layout:
+  Management:
+    style: row
+    columns: 3
+  Tools:
+    style: row
+    columns: 3
+
+disableIndexing: true

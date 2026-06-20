@@ -6,7 +6,7 @@ Self-hosted service stack on Windows + WSL2, fronted by Caddy as reverse proxy.
 
 | Service | URL | Purpose |
 |---|---|---|
-| Homarr | https://dash.home | Dashboard / launcher |
+| Homepage | https://dash.home | Dashboard / launcher (primary entry point) |
 | Stirling-PDF | https://pdf.home | PDF tools (merge, split, OCR, convert) |
 | Uptime Kuma | https://status.home | Uptime monitoring + alerts |
 | IT-Tools | https://tools.home | Toolbox for devs (UUID, base64, JWT, hash, etc) |
@@ -22,29 +22,31 @@ publishes a host port directly (except Caddy itself).
 | File | Purpose |
 |---|---|
 | `docker-compose.yml` | Service definitions. |
-| `Caddyfile` | Reverse proxy routes + global security headers. |
+| `Caddyfile` | Reverse proxy routes + global security headers. Uses `{{WSL_HOST_IP}}` placeholder (substituted at container start). |
+| `caddy/entrypoint.sh` | Substitutes `{{WSL_HOST_IP}}` in `Caddyfile` and starts Caddy. |
 | `.env.example` | Template for the `.env` secrets file. Copy to `.env` and fill in. |
 | `.env` | Real secrets. **Never committed.** |
 | `certs/` | TLS certs and mkcert root CA. **Not committed.** |
-| `homarr-data/` | Homarr persistent state (DB, uploads). Not committed. |
+| `homepage/` | Homepage config (services, widgets, settings, images). Not committed. |
 | `stirling-data/` | Stirling-PDF persistent state. Not committed. |
 | `uptime-kuma-data/` | Uptime Kuma persistent state. Not committed. |
 | `portainer_data/` | Docker named volume for Portainer's config. |
 
 ## First-time setup (after cloning)
 
-1. Copy the env template and generate a fresh secret:
+1. Copy the env template:
    ```bash
    cp .env.example .env
-   openssl rand -hex 32 | xargs -I {} sed -i "s/replace_me_with_output_of_openssl_rand_hex_32/{}/" .env
    ```
+   Fill in any values you need:
+   - `WSL_HOST_IP` — your WSL2 eth0 IP (run `hostname -I` to get it).
+     This is the **only** place you set the IP. It's used in
+     `docker-compose.yml` (extra_hosts) and rendered into `Caddyfile`
+     at container start via `caddy/entrypoint.sh`.
+   - `PORTAINER_API_KEY` — for the Homepage widget.
 2. Install `mkcert` and generate the TLS certs (see [HTTPS setup](#https-setup) below).
-3. Find your WSL host IP (used by Caddy to reach the WSL host and by Windows to reach WSL):
-   ```bash
-   hostname -I
-   ```
-4. Edit `docker-compose.yml` and `Caddyfile` to replace `172.27.95.84` with your IP (see comments inline).
-5. Add the hostnames to `C:\Windows\System32\drivers\etc\hosts` (Administrator):
+3. Add the hostnames to `C:\Windows\System32\drivers\etc\hosts` (Administrator).
+   Use the same IP you set in `WSL_HOST_IP`:
    ```
    <WSL_IP>   dash.home
    <WSL_IP>   pdf.home
@@ -61,7 +63,8 @@ publishes a host port directly (except Caddy itself).
    ```bash
    docker compose up -d
    ```
-8. Visit `https://dash.home` in a browser private window (Zen/Firefox DNS cache workaround).
+8. Visit `https://dash.home` (Homepage, the new primary dashboard) in a
+   browser private window (Zen/Firefox DNS cache workaround).
 
 ## Adding a new service
 
@@ -147,6 +150,7 @@ Cheat sheet for apps you might add. Always verify against the image's current do
 | Vaultwarden | `vaultwarden/server:latest` | 80 | `vault.home` |
 | Portainer CE | `portainer/portainer-ce:latest` | 9000 | `portainer.home` |
 | Dockge | `louislam/dockge:1` | 5001 | `dockge.home` |
+| Homarr | `ghcr.io/homarr-labs/homarr:latest` | 7575 | `dash.home` (or replace with Homepage) |
 | Nextcloud | `nextcloud:29-apache` | 80 | `cloud.home` |
 | Jellyfin | `jellyfin/jellyfin:10.10` | 8096 | `media.home` |
 | Navidrome | `deluan/navidrome:latest` | 4533 | `music.home` |
@@ -196,7 +200,7 @@ Image tags are pinned in `docker-compose.yml`. To upgrade a service to a new maj
 
 - **Browser hits a public IP instead of the WSL service:** Zen/Firefox is caching an old DNS. Open in a private window (`Ctrl+Shift+P`) or clear `about:config` → `network.dnsCacheEntries` → 0.
 - **Caddy 502 on a route:** the upstream service isn't running, or `extra_hosts` doesn't reach the WSL host. Check `docker compose ps` and `docker exec caddy wget http://service:port/`.
-- **WSL IP changed after reboot:** run `hostname -I` in WSL, then update `docker-compose.yml`, `Caddyfile`, and Windows `hosts` with the new IP. Restart the stack.
+- **WSL IP changed after reboot:** run `hostname -I` in WSL, then update **only** `WSL_HOST_IP` in `.env` and the matching line in Windows `hosts`. Restart the stack (`docker compose up -d`). The `Caddyfile` placeholder `{{WSL_HOST_IP}}` is substituted at Caddy container start, so no compose or Caddyfile edit is needed.
 - **Browser warns about untrusted cert:** the mkcert root CA isn't installed in your browser. See [HTTPS setup](#https-setup) below. Zen/Firefox keeps its own trust store — restart the browser after importing.
 - **Portainer is empty / doesn't see the other stacks:** Portainer only sees containers it can reach via the Docker socket. If you want to manage stacks in other compose projects (e.g. `odysseus`, `cartus`) from Portainer, run them on the same Docker daemon with compose files in a known location, then add the parent directory in Portainer → Stacks → Add stack.
 

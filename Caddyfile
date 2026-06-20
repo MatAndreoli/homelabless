@@ -1,3 +1,9 @@
+{
+    # Expose the admin API on the homelab Docker network so Homepage
+    # can read Caddy metrics. Default is 127.0.0.1:2019 (loopback only).
+    admin 0.0.0.0:2019
+}
+
 (secure_headers) {
     # Security headers applied to every route that imports this snippet.
     header {
@@ -38,17 +44,18 @@ https://pdf.home {
 https://dash.home {
     import secure_headers
     tls /certs/dash.home.pem /certs/dash.home.key
-    reverse_proxy homarr:7575
+    reverse_proxy homepage:3000
 }
 
 https://odysseus.home {
     import secure_headers
     tls /certs/odysseus.home.pem /certs/odysseus.home.key
     # Odysseus runs on the WSL host (not in this compose stack).
-    # Replace 172.27.95.84 with your WSL eth0 IP if it changes
-    # (run `hostname -I` in WSL to check). Same IP must be set
-    # in Windows %SystemRoot%\System32\drivers\etc\hosts.
-    reverse_proxy 172.27.95.84:7000
+    # The {{WSL_HOST_IP}} placeholder is replaced at container start
+    # by caddy/entrypoint.sh using the WSL_HOST_IP env var (set via
+    # .env -> docker-compose.yml). Same value must be set in Windows
+    # %SystemRoot%\System32\drivers\etc\hosts.
+    reverse_proxy {{WSL_HOST_IP}}:7000
 }
 
 https://status.home {
