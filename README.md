@@ -6,12 +6,13 @@ Self-hosted service stack on Windows + WSL2, fronted by Caddy as reverse proxy.
 
 | Service | URL | Purpose |
 |---|---|---|
-| Homarr | http://dash.home | Dashboard / launcher |
-| Stirling-PDF | http://pdf.home | PDF tools (merge, split, OCR, convert) |
-| Uptime Kuma | http://status.home | Uptime monitoring + alerts |
-| Odysseus | http://odysseus.home | (runs on WSL host, not in this stack) |
+| Homarr | https://dash.home | Dashboard / launcher |
+| Stirling-PDF | https://pdf.home | PDF tools (merge, split, OCR, convert) |
+| Uptime Kuma | https://status.home | Uptime monitoring + alerts |
+| Odysseus | https://odysseus.home | (runs on WSL host, not in this stack) |
 
-All services are reachable only through Caddy on port 80. No container
+All services are reachable only through Caddy on ports 80 (HTTP) and 443
+(HTTPS). HTTP requests are automatically redirected to HTTPS. No container
 publishes a host port directly (except Caddy itself).
 
 ## Files
@@ -33,34 +34,35 @@ publishes a host port directly (except Caddy itself).
    cp .env.example .env
    openssl rand -hex 32 | xargs -I {} sed -i "s/replace_me_with_output_of_openssl_rand_hex_32/{}/" .env
    ```
-2. Find your WSL host IP (used by Caddy to reach the WSL host and by Windows to reach WSL):
+2. Install `mkcert` and generate the TLS certs (see [HTTPS setup](#https-setup) below).
+3. Find your WSL host IP (used by Caddy to reach the WSL host and by Windows to reach WSL):
    ```bash
    hostname -I
    ```
-3. Edit `docker-compose.yml` and `Caddyfile` to replace `172.27.95.84` with your IP (see comments inline).
-4. Add the hostnames to `C:\Windows\System32\drivers\etc\hosts` (Administrator):
+4. Edit `docker-compose.yml` and `Caddyfile` to replace `172.27.95.84` with your IP (see comments inline).
+5. Add the hostnames to `C:\Windows\System32\drivers\etc\hosts` (Administrator):
    ```
    <WSL_IP>   dash.home
    <WSL_IP>   pdf.home
    <WSL_IP>   status.home
    <WSL_IP>   odysseus.home
    ```
-5. Flush DNS in PowerShell (Admin):
+6. Flush DNS in PowerShell (Admin):
    ```powershell
    ipconfig /flushdns
    ```
-6. Start the stack:
+7. Start the stack:
    ```bash
    docker compose up -d
    ```
-7. Visit `http://dash.home` in a browser private window (Zen/Firefox DNS cache workaround).
+8. Visit `https://dash.home` in a browser private window (Zen/Firefox DNS cache workaround).
 
 ## Adding a new service
 
 Three things to touch per new service:
 
 1. Add a block to `docker-compose.yml` (snippet below).
-2. Add a route to `Caddyfile` (snippet below).
+2. Add an `https://` route + an `http://` redirect in `Caddyfile` (snippet below).
 3. Add the hostname to Windows `hosts`.
 
 Then reload:
@@ -94,7 +96,12 @@ If the service has no persistent state, omit the `volumes:` block. If it needs a
 
 ```caddyfile
 http://<service>.home {
+    redir https://<service>.home{uri} permanent
+}
+
+https://<service>.home {
     import secure_headers
+    tls /certs/<service>.home.pem /certs/<service>.home.key
     reverse_proxy <service-name>:<PORT>
 }
 ```
@@ -102,10 +109,14 @@ http://<service>.home {
 If the service runs **on the WSL host** (outside this compose stack), point at the host IP:
 
 ```caddyfile
-http://<service>.home {
-    import secure_headers
-    reverse_proxy <WSL_IP>:<PORT>
-}
+reverse_proxy <WSL_IP>:<PORT>
+```
+
+Don't forget to generate a TLS cert for the new hostname:
+
+```bash
+cd /home/matandreoli/homelab
+mkcert -cert-file certs/<service>.home.pem -key-file certs/<service>.home.key <service>.home
 ```
 
 ### 3. Windows hosts snippet
@@ -180,3 +191,72 @@ Image tags are pinned in `docker-compose.yml`. To upgrade a service to a new maj
 - **Browser hits a public IP instead of the WSL service:** Zen/Firefox is caching an old DNS. Open in a private window (`Ctrl+Shift+P`) or clear `about:config` → `network.dnsCacheEntries` → 0.
 - **Caddy 502 on a route:** the upstream service isn't running, or `extra_hosts` doesn't reach the WSL host. Check `docker compose ps` and `docker exec caddy wget http://service:port/`.
 - **WSL IP changed after reboot:** run `hostname -I` in WSL, then update `docker-compose.yml`, `Caddyfile`, and Windows `hosts` with the new IP. Restart the stack.
+- **Browser warns about untrusted cert:** the mkcert root CA isn't installed in your browser. See [HTTPS setup](#https-setup) below. Zen/Firefox keeps its own trust store — restart the browser after importing.
+
+---
+
+## HTTPS setup
+
+This stack uses [mkcert](https://github.com/FiloSottile/mkcert) to issue
+local TLS certificates signed by a private CA. Browsers trust them only
+if the mkcert root CA is installed in their trust store. No public CA,
+no domain, no internet required.
+
+### One-time setup (per machine)
+
+1. Install mkcert:
+   ```bash
+   sudo apt install mkcert
+   ```
+2. Install the mkcert root CA into the Linux trust store (also handles
+   browsers running inside WSL):
+   ```bash
+   mkcert -install
+   ```
+3. Generate a cert per hostname. The certs land in `./certs/` and are
+   bind-mounted into Caddy at `/certs/`:
+   ```bash
+   cd /home/matandreoli/homelab
+   mkdir -p certs
+   mkcert -cert-file certs/dash.home.pem     -key-file certs/dash.home.key     dash.home
+   mkcert -cert-file certs/pdf.home.pem      -key-file certs/pdf.home.key      pdf.home
+   mkcert -cert-file certs/status.home.pem   -key-file certs/status.home.key   status.home
+   mkcert -cert-file certs/odysseus.home.pem -key-file certs/odysseus.home.key odysseus.home
+   ```
+4. **Install the mkcert root CA in your browser** (Zen / Firefox):
+   - Open `about:preferences#privacy` → Certificates → View Certificates
+   - Tab **Authorities** → **Import**
+   - Path: `\\wsl$\Ubuntu\home\matandreoli\.local\share\mkcert\rootCA.pem`
+   - Check **"Trust this CA to identify websites"** → OK
+   - Restart the browser
+
+   To trust from native Windows tools (PowerShell, curl.exe, etc), also
+   import the cert into the Windows trust store via `certmgr.msc`.
+
+5. Recreate the Caddy container so the new volume mount takes effect:
+   ```bash
+   docker compose up -d caddy
+   ```
+
+### Renewing certs
+
+mkcert certs are valid for ~2 years. To regenerate (same commands
+overwrite the existing files):
+
+```bash
+cd /home/matandreoli/homelab
+mkcert -cert-file certs/dash.home.pem -key-file certs/dash.home.key dash.home
+# ... repeat for other hostnames
+docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+```
+
+The mkcert root CA itself doesn't expire but you can check its status
+with `mkcert -CAROOT`.
+
+### Why not Let's Encrypt?
+
+LE requires a public domain and DNS pointing to a public IP, plus an
+ACME challenge on port 80 (or DNS challenge). This stack is on a
+private WSL2 network with no public domain, so LE is not an option.
+mkcert gives a "real" HTTPS experience (green padlock, valid TLS 1.3,
+HSTS) without any of that.

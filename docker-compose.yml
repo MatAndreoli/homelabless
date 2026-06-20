@@ -1,14 +1,16 @@
 services:
   caddy:
-    # Internal: listens on :80 (public, published) and :2019 (admin API).
+    # Internal: listens on :80 (public, http) and :443 (public, https).
     # Proxies <service>.home -> service:<port> via the homelab network.
     image: caddy:2.11
     container_name: caddy
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
@@ -28,7 +30,7 @@ services:
     restart: unless-stopped
     environment:
       - SECRET_ENCRYPTION_KEY=${SECRET_ENCRYPTION_KEY}
-      - ALLOWED_ORIGINS=http://dash.home
+      - ALLOWED_ORIGINS=https://dash.home
     volumes:
       - ./homarr-data:/app/data
     networks:
@@ -51,6 +53,11 @@ services:
     restart: unless-stopped
     volumes:
       - ./uptime-kuma-data:/app/data
+      # Mount the mkcert root CA so Node's TLS validator trusts our
+      # local HTTPS certs. NODE_EXTRA_CA_CERTS points Node to it.
+      - ./certs/rootCA.pem:/usr/local/share/ca-certificates/mkcert-rootCA.crt:ro
+    environment:
+      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/mkcert-rootCA.crt
     networks:
       - homelab
 

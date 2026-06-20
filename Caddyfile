@@ -1,26 +1,43 @@
 (secure_headers) {
     # Security headers applied to every route that imports this snippet.
-    # Re-enable HSTS once HTTPS is fully working.
     header {
-        # Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "SAMEORIGIN"
         Referrer-Policy "strict-origin-when-cross-origin"
     }
 }
 
+# HTTP: redirect everything to HTTPS
 http://pdf.home {
+    redir https://pdf.home{uri} permanent
+}
+http://dash.home {
+    redir https://dash.home{uri} permanent
+}
+http://odysseus.home {
+    redir https://odysseus.home{uri} permanent
+}
+http://status.home {
+    redir https://status.home{uri} permanent
+}
+
+# HTTPS: actual reverse proxy
+https://pdf.home {
     import secure_headers
+    tls /certs/pdf.home.pem /certs/pdf.home.key
     reverse_proxy stirling-pdf:8080
 }
 
-http://dash.home {
+https://dash.home {
     import secure_headers
+    tls /certs/dash.home.pem /certs/dash.home.key
     reverse_proxy homarr:7575
 }
 
-http://odysseus.home {
+https://odysseus.home {
     import secure_headers
+    tls /certs/odysseus.home.pem /certs/odysseus.home.key
     # Odysseus runs on the WSL host (not in this compose stack).
     # Replace 172.27.95.84 with your WSL eth0 IP if it changes
     # (run `hostname -I` in WSL to check). Same IP must be set
@@ -28,7 +45,8 @@ http://odysseus.home {
     reverse_proxy 172.27.95.84:7000
 }
 
-http://status.home {
+https://status.home {
     import secure_headers
+    tls /certs/status.home.pem /certs/status.home.key
     reverse_proxy uptime-kuma:3001
 }
