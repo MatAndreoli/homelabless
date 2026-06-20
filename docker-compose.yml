@@ -61,9 +61,33 @@ services:
     networks:
       - homelab
 
+  it-tools:
+    # Internal port: 80 (proxied by Caddy as tools.home)
+    # Stateless toolbox for dev. No DB, no login.
+    image: corentinth/it-tools:latest
+    container_name: it-tools
+    restart: unless-stopped
+    networks:
+      - homelab
+
+  portainer:
+    # Internal port: 9000 (proxied by Caddy as portainer.home)
+    # Web UI for managing Docker containers, images, volumes, networks.
+    # Mounts the Docker socket to control the daemon. Required for the
+    # app to function; gives Portainer root-equivalent control.
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - homelab
+
 volumes:
   caddy_data:
   caddy_config:
+  portainer_data:
 
 networks:
   homelab:

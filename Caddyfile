@@ -21,6 +21,12 @@ http://odysseus.home {
 http://status.home {
     redir https://status.home{uri} permanent
 }
+http://tools.home {
+    redir https://tools.home{uri} permanent
+}
+http://portainer.home {
+    redir https://portainer.home{uri} permanent
+}
 
 # HTTPS: actual reverse proxy
 https://pdf.home {
@@ -49,4 +55,16 @@ https://status.home {
     import secure_headers
     tls /certs/status.home.pem /certs/status.home.key
     reverse_proxy uptime-kuma:3001
+}
+
+https://tools.home {
+    import secure_headers
+    tls /certs/tools.home.pem /certs/tools.home.key
+    reverse_proxy it-tools:80
+}
+
+https://portainer.home {
+    import secure_headers
+    tls /certs/portainer.home.pem /certs/portainer.home.key
+    reverse_proxy portainer:9000
 }
