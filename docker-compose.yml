@@ -1,0 +1,63 @@
+services:
+  caddy:
+    # Internal: listens on :80 (public, published) and :2019 (admin API).
+    # Proxies <service>.home -> service:<port> via the homelab network.
+    image: caddy:2.11
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - homelab
+    extra_hosts:
+      # Lets Caddy reach services running on the WSL host (Odysseus).
+      # Replace 172.27.95.84 with your WSL eth0 IP if it changes
+      # (run `hostname -I` in WSL to check). Same IP must also be set
+      # in Windows %SystemRoot%\System32\drivers\etc\hosts.
+      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:172.27.95.84"
+
+  homarr:
+    # Internal port: 7575 (proxied by Caddy as dash.home)
+    image: ghcr.io/homarr-labs/homarr:latest
+    container_name: homarr
+    restart: unless-stopped
+    environment:
+      - SECRET_ENCRYPTION_KEY=${SECRET_ENCRYPTION_KEY}
+      - ALLOWED_ORIGINS=http://dash.home
+    volumes:
+      - ./homarr-data:/app/data
+    networks:
+      - homelab
+
+  stirling-pdf:
+    # Internal port: 8080 (proxied by Caddy as pdf.home)
+    image: stirlingtools/stirling-pdf:latest
+    container_name: stirling-pdf
+    restart: unless-stopped
+    volumes:
+      - ./stirling-data:/configs
+    networks:
+      - homelab
+
+  uptime-kuma:
+    # Internal port: 3001 (proxied by Caddy as status.home)
+    image: louislam/uptime-kuma:2
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - ./uptime-kuma-data:/app/data
+    networks:
+      - homelab
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  homelab:
+    driver: bridge

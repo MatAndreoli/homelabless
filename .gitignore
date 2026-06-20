@@ -1,0 +1,23 @@
+# Persistent service data (volumes bind-mounted into containers).
+# Contains databases, configs, uploads. Never version this.
+homarr-data
+stirling-data
+uptime-kuma-data
+
+# Docker named volumes (caddy_data, caddy_config) — managed by Docker, not by us.
+
+# Secrets — generated locally, never committed.
+# Contains SECRET_ENCRYPTION_KEY and any future env-var secrets.
+.env
+
+# OS / editor junk.
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE / tooling.
+.vscode/
+.idea/
+*.iml

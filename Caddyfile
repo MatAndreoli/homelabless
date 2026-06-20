@@ -1,0 +1,34 @@
+(secure_headers) {
+    # Security headers applied to every route that imports this snippet.
+    # Re-enable HSTS once HTTPS is fully working.
+    header {
+        # Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
+
+http://pdf.home {
+    import secure_headers
+    reverse_proxy stirling-pdf:8080
+}
+
+http://dash.home {
+    import secure_headers
+    reverse_proxy homarr:7575
+}
+
+http://odysseus.home {
+    import secure_headers
+    # Odysseus runs on the WSL host (not in this compose stack).
+    # Replace 172.27.95.84 with your WSL eth0 IP if it changes
+    # (run `hostname -I` in WSL to check). Same IP must be set
+    # in Windows %SystemRoot%\System32\drivers\etc\hosts.
+    reverse_proxy 172.27.95.84:7000
+}
+
+http://status.home {
+    import secure_headers
+    reverse_proxy uptime-kuma:3001
+}
