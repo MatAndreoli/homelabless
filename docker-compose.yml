@@ -1,9 +1,19 @@
+# x-logging: shared log rotation config. Caps each container's log at 10MB
+# across 3 files (30MB max per container). Prevents /var/lib/docker from
+# filling up over time. Apply with `logging: *default-logging` per service.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   caddy:
     # Internal: listens on :80 (public, http) and :443 (public, https).
     # Proxies <service>.homelab.less -> service:<port> via the homelab network.
     image: caddy:2.11
     container_name: caddy
+    logging: *default-logging
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/etc/caddy/entrypoint.sh"]
     command: []
@@ -47,6 +57,7 @@ services:
     # Internal port: 8080 (proxied by Caddy as pdf.homelab.less)
     image: stirlingtools/stirling-pdf:2.13.1
     container_name: stirling-pdf
+    logging: *default-logging
     restart: unless-stopped
     volumes:
       - ./stirling-data:/configs
@@ -71,6 +82,7 @@ services:
     # Internal port: 3001 (proxied by Caddy as status.homelab.less)
     image: louislam/uptime-kuma:2
     container_name: uptime-kuma
+    logging: *default-logging
     restart: unless-stopped
     volumes:
       - ./uptime-kuma-data:/app/data
@@ -93,6 +105,7 @@ services:
     # Stateless toolbox for dev. No DB, no login.
     image: corentinth/it-tools:2024.10.22-7ca5933
     container_name: it-tools
+    logging: *default-logging
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:80/"]
@@ -110,6 +123,7 @@ services:
     # app to function; gives Portainer root-equivalent control.
     image: portainer/portainer-ce:2.39.3-alpine
     container_name: portainer
+    logging: *default-logging
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -137,6 +151,7 @@ services:
     # homelab network, so no host port is needed.
     image: gethomepage/homepage:v1.13.2
     container_name: homepage
+    logging: *default-logging
     restart: unless-stopped
     environment:
       # Allow Host header validation. Add every hostname that Caddy
@@ -188,6 +203,7 @@ services:
     # login covers all .homelab.less routes.
     image: authelia/authelia:4.39.20
     container_name: authelia
+    logging: *default-logging
     restart: unless-stopped
     # Secrets from .env (gitignored) — substituted into configuration.yml
     # via ${VAR} syntax. All three are sensitive; do not commit values.

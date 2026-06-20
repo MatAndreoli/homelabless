@@ -1,6 +1,8 @@
 {
-    # Expose the admin API on the homelab Docker network so Homepage
-    # can read Caddy metrics. Default is 127.0.0.1:2019 (loopback only).
+    # Expose the admin API. Caddy validates the Host header (defaults
+    # to localhost + listener IP), so requests via Docker DNS name
+    # 'caddy' work from the homelab bridge network only. On a private
+    # LAN this is acceptable; tighten further if exposing publicly.
     admin 0.0.0.0:2019
 }
 
