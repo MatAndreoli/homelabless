@@ -9,6 +9,8 @@ Self-hosted service stack on Windows + WSL2, fronted by Caddy as reverse proxy.
 | Homarr | https://dash.home | Dashboard / launcher |
 | Stirling-PDF | https://pdf.home | PDF tools (merge, split, OCR, convert) |
 | Uptime Kuma | https://status.home | Uptime monitoring + alerts |
+| IT-Tools | https://tools.home | Toolbox for devs (UUID, base64, JWT, hash, etc) |
+| Portainer | https://portainer.home | Web UI for managing Docker |
 | Odysseus | https://odysseus.home | (runs on WSL host, not in this stack) |
 
 All services are reachable only through Caddy on ports 80 (HTTP) and 443
@@ -23,9 +25,11 @@ publishes a host port directly (except Caddy itself).
 | `Caddyfile` | Reverse proxy routes + global security headers. |
 | `.env.example` | Template for the `.env` secrets file. Copy to `.env` and fill in. |
 | `.env` | Real secrets. **Never committed.** |
+| `certs/` | TLS certs and mkcert root CA. **Not committed.** |
 | `homarr-data/` | Homarr persistent state (DB, uploads). Not committed. |
 | `stirling-data/` | Stirling-PDF persistent state. Not committed. |
 | `uptime-kuma-data/` | Uptime Kuma persistent state. Not committed. |
+| `portainer_data/` | Docker named volume for Portainer's config. |
 
 ## First-time setup (after cloning)
 
@@ -45,6 +49,8 @@ publishes a host port directly (except Caddy itself).
    <WSL_IP>   dash.home
    <WSL_IP>   pdf.home
    <WSL_IP>   status.home
+   <WSL_IP>   tools.home
+   <WSL_IP>   portainer.home
    <WSL_IP>   odysseus.home
    ```
 6. Flush DNS in PowerShell (Admin):
@@ -192,6 +198,7 @@ Image tags are pinned in `docker-compose.yml`. To upgrade a service to a new maj
 - **Caddy 502 on a route:** the upstream service isn't running, or `extra_hosts` doesn't reach the WSL host. Check `docker compose ps` and `docker exec caddy wget http://service:port/`.
 - **WSL IP changed after reboot:** run `hostname -I` in WSL, then update `docker-compose.yml`, `Caddyfile`, and Windows `hosts` with the new IP. Restart the stack.
 - **Browser warns about untrusted cert:** the mkcert root CA isn't installed in your browser. See [HTTPS setup](#https-setup) below. Zen/Firefox keeps its own trust store — restart the browser after importing.
+- **Portainer is empty / doesn't see the other stacks:** Portainer only sees containers it can reach via the Docker socket. If you want to manage stacks in other compose projects (e.g. `odysseus`, `cartus`) from Portainer, run them on the same Docker daemon with compose files in a known location, then add the parent directory in Portainer → Stacks → Add stack.
 
 ---
 
@@ -218,11 +225,20 @@ no domain, no internet required.
    ```bash
    cd /home/matandreoli/homelab
    mkdir -p certs
-   mkcert -cert-file certs/dash.home.pem     -key-file certs/dash.home.key     dash.home
-   mkcert -cert-file certs/pdf.home.pem      -key-file certs/pdf.home.key      pdf.home
-   mkcert -cert-file certs/status.home.pem   -key-file certs/status.home.key   status.home
-   mkcert -cert-file certs/odysseus.home.pem -key-file certs/odysseus.home.key odysseus.home
+   mkcert -cert-file certs/dash.home.pem      -key-file certs/dash.home.key      dash.home
+   mkcert -cert-file certs/pdf.home.pem       -key-file certs/pdf.home.key       pdf.home
+   mkcert -cert-file certs/status.home.pem    -key-file certs/status.home.key    status.home
+   mkcert -cert-file certs/tools.home.pem     -key-file certs/tools.home.key     tools.home
+   mkcert -cert-file certs/portainer.home.pem -key-file certs/portainer.home.key portainer.home
+   mkcert -cert-file certs/odysseus.home.pem  -key-file certs/odysseus.home.key  odysseus.home
    ```
+
+   Portainer also needs the mkcert root CA to validate HTTPS on the other
+   services it monitors. Mount it into the container:
+   ```bash
+   cp ~/.local/share/mkcert/rootCA.pem certs/rootCA.pem
+   ```
+   (Already wired in `docker-compose.yml` via `NODE_EXTRA_CA_CERTS`.)
 4. **Install the mkcert root CA in your browser** (Zen / Firefox):
    - Open `about:preferences#privacy` → Certificates → View Certificates
    - Tab **Authorities** → **Import**
