@@ -179,6 +179,9 @@ services:
       - "tools.homelab.less:${WSL_HOST_IP}"
       - "portainer.homelab.less:${WSL_HOST_IP}"
       - "odysseus.homelab.less:${WSL_HOST_IP}"
+      # Lets Homepage probe services running on the WSL host directly
+      # (e.g. Odysseus), bypassing Caddy + Authelia.
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test:
         [

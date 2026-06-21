@@ -11,13 +11,13 @@ Last updated: 2026-06-20. Pinned versions: caddy 2.11, authelia 4.39.20, stirlin
                     │
                     │ *.homelab.less (HTTP/HTTPS)
                     ▼
-       ┌──── WSL2 (Docker daemon) ────┐
-       │                               │
-       │  :80 / :443                   │
+       ┌──── WSL2 (Docker daemon) ───────────┐
+       │                                     │
+       │  :80 / :443                         │
        │  ┌──────┐  forward_auth  ┌──────────┐
        │  │Caddy │ ──────────────▶│ Authelia │
        │  └──┬───┘   302 on miss  └──────────┘
-       │     │  (reverse_proxy)               │
+       │     │  (reverse_proxy)              │
        │     ▼                               │
        │  ┌─────────┐  ┌──────┐  ┌────────┐  │
        │  │stirling │  │kuma  │  │it-tools│  │

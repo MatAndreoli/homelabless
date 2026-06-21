@@ -7,8 +7,8 @@
         href: https://portainer.homelab.less
         description: Docker management
         icon: portainer
-        siteMonitor: https://portainer.homelab.less
-        ping: https://portainer.homelab.less
+        siteMonitor: http://portainer:9000
+        ping: http://portainer:9000
         widget:
           type: portainer
           url: http://portainer:9000
@@ -23,18 +23,18 @@
         href: https://status.homelab.less
         description: Uptime monitor
         icon: uptime-kuma
-        siteMonitor: https://status.homelab.less
-        ping: https://status.homelab.less
+        siteMonitor: http://uptime-kuma:3001
+        ping: http://uptime-kuma:3001
         widget:
           type: uptimekuma
-          url: https://status.homelab.less
+          url: http://uptime-kuma:3001
           slug: homelab
     - Caddy:
         href: https://dash.homelab.less
         description: Reverse proxy
         icon: caddy
-        siteMonitor: https://dash.homelab.less
-        ping: https://dash.homelab.less
+        siteMonitor: http://caddy:2019/config/
+        ping: http://caddy:2019/config/
         widget:
           type: caddy
           url: http://caddy:2019
@@ -44,17 +44,17 @@
         href: https://pdf.homelab.less
         description: PDF tools
         icon: mdi-file-pdf-box
-        siteMonitor: https://pdf.homelab.less
-        ping: https://pdf.homelab.less
+        siteMonitor: http://stirling-pdf:8080
+        ping: http://stirling-pdf:8080
     - IT-Tools:
         href: https://tools.homelab.less
         description: Dev toolbox
         icon: it-tools
-        siteMonitor: https://tools.homelab.less
-        ping: https://tools.homelab.less
+        siteMonitor: http://it-tools:80
+        ping: http://it-tools:80
     - Odysseus:
         href: https://odysseus.homelab.less
         description: AI workspace
         icon: odysseus
-        siteMonitor: https://odysseus.homelab.less
-        ping: https://odysseus.homelab.less
+        siteMonitor: http://host.docker.internal:7000
+        ping: http://host.docker.internal:7000
