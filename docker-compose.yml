@@ -91,6 +91,10 @@ services:
       - ./certs/rootCA.pem:/usr/local/share/ca-certificates/mkcert-rootCA.crt:ro
     environment:
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/mkcert-rootCA.crt
+    extra_hosts:
+      # Lets Uptime-Kuma probe services running on the WSL host directly
+      # (e.g. Odysseus), bypassing Caddy + Authelia.
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:3001/"]
       interval: 30s
