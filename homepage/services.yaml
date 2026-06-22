@@ -38,6 +38,23 @@
         widget:
           type: caddy
           url: http://caddy:2019
+    - Beszel:
+        href: https://beszel.homelab.less
+        description: Resource monitor
+        icon: beszel
+        siteMonitor: http://beszel-hub:8090
+        ping: http://beszel-hub:8090
+        widget:
+          type: beszel
+          url: http://beszel-hub:8090
+          # Credentials live in .env (BESZEL_USER / BESZEL_PASSWORD /
+          # BESZEL_SYSTEM_ID) and are interpolated by Homepage from the
+          # matching HOMEPAGE_VAR_* env vars on the container. See
+          # docker-compose.yml -> homepage.environment.
+          username: "{{HOMEPAGE_VAR_BESZEL_USER}}"
+          password: "{{HOMEPAGE_VAR_BESZEL_PASSWORD}}"
+          systemId: "{{HOMEPAGE_VAR_BESZEL_SYSTEM_ID}}"
+          version: 2
 
 - Tools:
     - Stirling-PDF:

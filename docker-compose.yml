@@ -167,6 +167,11 @@ services:
       # (defined in .env). Homepage interpolates {{HOMEPAGE_VAR_PORTAINER_KEY}}
       # in services.yaml at config-load time.
       - HOMEPAGE_VAR_PORTAINER_KEY=${PORTAINER_API_KEY}
+      # Same pattern for the Beszel widget. User/password/systemId all
+      # live in .env so services.yaml stays free of credentials.
+      - HOMEPAGE_VAR_BESZEL_USER=${BESZEL_USER}
+      - HOMEPAGE_VAR_BESZEL_PASSWORD=${BESZEL_PASSWORD}
+      - HOMEPAGE_VAR_BESZEL_SYSTEM_ID=${BESZEL_SYSTEM_ID}
     volumes:
       - ./homepage:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -228,6 +233,82 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    networks:
+      - homelab
+
+  beszel-hub:
+    # Internal port: 8090 (proxied by Caddy as beszel.homelab.less).
+    # Web UI + WebSocket endpoint for agents. Single Go binary + PocketBase
+    # SQLite at /beszel_data. Not published to host — Caddy reaches it by
+    # name on the homelab network.
+    image: henrygd/beszel:0.18.7
+    container_name: beszel-hub
+    logging: *default-logging
+    restart: unless-stopped
+    # Public URL — PocketBase uses it to build correct callback URLs and
+    # set cookies for the right domain. Required when reverse-proxied.
+    # BESZEL_HUB_USER_EMAIL seeds the initial "temp" superuser with this
+    # email; the installer's internal check looks for exactly this value
+    # (and would otherwise 403 on PocketBase 0.23+ which defaults to a
+    # different temp email). On first run, the installer UI replaces this
+    # temp superuser with a real one. Change to anything you like.
+    environment:
+      - APP_URL=https://beszel.homelab.less
+      - BESZEL_HUB_USER_EMAIL=_@b.b
+    volumes:
+      - ./beszel-hub-data:/beszel_data
+      # Shared unix socket volume — the agent listens on this socket, the
+      # hub dials it. Avoids exposing the agent's SSH port and lets the
+      # hub's per-system "Host" config be a socket path.
+      - ./beszel-socket:/beszel_socket
+    healthcheck:
+      # The hub image is a single Go binary with no shell, wget, or curl.
+      # It ships a built-in `beszel health` subcommand for healthchecks.
+      test: ["CMD", "/beszel", "health", "--url", "http://localhost:8090/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - homelab
+
+  beszel-agent:
+    # Listens on the shared unix socket; the hub dials it. Monitors the
+    # WSL host itself (via /proc + /sys bind mounts) and every docker
+    # container (via the docker socket). No TCP port published.
+    image: henrygd/beszel-agent:0.18.7
+    container_name: beszel-agent
+    logging: *default-logging
+    restart: unless-stopped
+    environment:
+      # Resolved via Docker DNS on the homelab network.
+      - HUB_URL=http://beszel-hub:8090
+      # Public key for the SSH keypair in the hub's data dir
+      # (./beszel-hub-data/id_ed25519). See .env.example for how to
+      # extract / rotate. Required.
+      - KEY=${BESZEL_AGENT_KEY}
+      # Registration token from the hub's "Add System" dialog. Required.
+      - TOKEN=${BESZEL_AGENT_TOKEN}
+      # Listen on the shared socket — the hub dials this path.
+      - LISTEN=/beszel_socket/beszel.sock
+      # Tell the agent to read host CPU/RAM from /host/proc and host
+      # disk/net from /host/sys, where we bind-mount the host's mounts.
+      - PROC_PATH=/host/proc
+      - SYS_PATH=/host/sys
+    volumes:
+      # Shared with beszel-hub — agent writes socket, hub reads it.
+      - ./beszel-socket:/beszel_socket
+      # Per-container stats (same pattern as homepage).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Host CPU/RAM. /proc inside the container would be the container's
+      # own /proc, so we bind-mount the host's /proc at /host/proc and
+      # point the agent at it via PROC_PATH.
+      - /proc:/host/proc:ro
+      # Host disk/net stats.
+      - /sys:/host/sys:ro
+    depends_on:
+      beszel-hub:
+        condition: service_healthy
     networks:
       - homelab
 

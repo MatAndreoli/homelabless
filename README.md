@@ -2,7 +2,7 @@
 
 Self-hosted service stack on Windows + WSL2, fronted by Caddy as reverse proxy with Authelia SSO.
 
-Last updated: 2026-06-20. Pinned versions: caddy 2.11, authelia 4.39.20, stirling-pdf 2.13.1, uptime-kuma 2, it-tools 2024.10.22-7ca5933, portainer 2.39.3, homepage v1.13.2.
+Last updated: 2026-06-22. Pinned versions: caddy 2.11, authelia 4.39.20, stirling-pdf 2.13.1, uptime-kuma 2, it-tools 2024.10.22-7ca5933, portainer 2.39.3, homepage v1.13.2, beszel 0.18.7 (hub + agent).
 
 ## Architecture
 
@@ -27,14 +27,18 @@ Last updated: 2026-06-20. Pinned versions: caddy 2.11, authelia 4.39.20, stirlin
        │  │homepage│  │ portainer│  │ login│ │
        │  │        │  │          │  │ UI   │ │
        │  └────────┘  └──────────┘  └──────┘ │
+       │  ┌────────┐  ┌─────────┐            │
+       │  │ beszel │  │ beszel  │            │
+       │  │  hub   │◀─┤ agent   │            │
+       │  └────────┘  └─────────┘            │
        │       all on `homelab` bridge net   │
        └─────────────────────────────────────┘
                     │
                     │ extra_hosts: WSL_HOST_IP
                     ▼
             ┌───────────────┐
-            │  WSL host      │
-            │  (odysseus)    │
+            │  WSL host     │
+            │  (odysseus)   │
             └───────────────┘
 ```
 
@@ -45,15 +49,16 @@ Last updated: 2026-06-20. Pinned versions: caddy 2.11, authelia 4.39.20, stirlin
 
 ## Stack
 
-| Service      | URL                              | Internal port | Purpose                                         | Auth                                 |
-| ------------ | -------------------------------- | ------------- | ----------------------------------------------- | ------------------------------------ |
-| Authelia     | <https://login.homelab.less>     | 9091          | SSO gate (login + 2FA)                          | —                                    |
-| Homepage     | <https://dash.homelab.less>      | 3000          | Dashboard / launcher (primary entry point)      | required                             |
-| Stirling-PDF | <https://pdf.homelab.less>       | 8080          | PDF tools (merge, split, OCR, convert)          | required                             |
-| Uptime Kuma  | <https://status.homelab.less>    | 3001          | Uptime monitoring + alerts                      | required (except public status page) |
-| IT-Tools     | <https://tools.homelab.less>     | 80            | Toolbox for devs (UUID, base64, JWT, hash, etc) | required                             |
-| Portainer    | <https://portainer.homelab.less> | 9000          | Web UI for managing Docker                      | required                             |
-| Odysseus     | <https://odysseus.homelab.less>  | (host port)   | Runs on WSL host, not in this stack             | required                             |
+| Service      | URL                              | Internal port | Purpose                                               | Auth                                 |
+| ------------ | -------------------------------- | ------------- | ----------------------------------------------------- | ------------------------------------ |
+| Authelia     | <https://login.homelab.less>     | 9091          | SSO gate (login + 2FA)                                | —                                    |
+| Homepage     | <https://dash.homelab.less>      | 3000          | Dashboard / launcher (primary entry point)            | required                             |
+| Stirling-PDF | <https://pdf.homelab.less>       | 8080          | PDF tools (merge, split, OCR, convert)                | required                             |
+| Uptime Kuma  | <https://status.homelab.less>    | 3001          | Uptime monitoring + alerts                            | required (except public status page) |
+| IT-Tools     | <https://tools.homelab.less>     | 80            | Toolbox for devs (UUID, base64, JWT, hash, etc)       | required                             |
+| Portainer    | <https://portainer.homelab.less> | 9000          | Web UI for managing Docker                            | required                             |
+| Beszel       | <https://beszel.homelab.less>    | 8090          | Resource monitor (CPU/RAM/disk/net + container stats) | required                             |
+| Odysseus     | <https://odysseus.homelab.less>  | (host port)   | Runs on WSL host, not in this stack                   | required                             |
 
 Internal port is what Caddy reverse-proxies to (`<container-name>:<port>`). Useful when adding monitors or wiring new services.
 
@@ -63,7 +68,7 @@ Internal port is what Caddy reverse-proxies to (`<container-name>:<port>`). Usef
 
 | File / dir                   | Purpose                                                                                                              |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `docker-compose.yml`         | Service definitions: 7 containers, shared `homelab` network, healthchecks, log rotation, `x-logging` anchor.         |
+| `docker-compose.yml`         | Service definitions: 9 containers, shared `homelab` network, healthchecks, log rotation, `x-logging` anchor.         |
 | `Caddyfile`                  | Reverse proxy routes + global security headers. Uses `{{WSL_HOST_IP}}` placeholder (substituted at container start). |
 | `caddy/entrypoint.sh`        | Substitutes `{{WSL_HOST_IP}}` in `Caddyfile` and starts Caddy.                                                       |
 | `.env.example`               | Template for the `.env` secrets file. Copy to `.env` and fill in.                                                    |
@@ -78,6 +83,8 @@ Internal port is what Caddy reverse-proxies to (`<container-name>:<port>`). Usef
 | `homepage/logs/`             | Homepage access logs. Not committed.                                                                                 |
 | `portainer_data`             | Docker named volume for Portainer's config.                                                                          |
 | `authelia_data`              | Docker named volume for Authelia SQLite + notifications.                                                             |
+| `beszel-hub-data/`           | Beszel hub's PocketBase SQLite (users, systems, recorded metrics). Bind mount. Not committed.                        |
+| `beszel-socket/`             | Shared unix socket between `beszel-hub` and `beszel-agent`. Created at runtime. Not committed.                       |
 | `caddy_data`, `caddy_config` | Docker named volumes for Caddy's cert cache and runtime config.                                                      |
 
 ## Network
@@ -373,33 +380,18 @@ In `homepage/services.yaml`, the user-facing `href:` stays as `https://*.homelab
 
 ## Common service ports
 
-Cheat sheet for apps you might add. **Always verify against the image's current docs** — default ports change. The `Image` column shows the `:latest` reference; in this stack we pin tags in `docker-compose.yml`.
+Reference for the in-stack services. The `Image` column shows the `:latest` reference; in this stack we pin tags in `docker-compose.yml`. (For URL, purpose, and auth per service see the [Stack](#stack) table above.)
 
-| App             | Image                                        | Port  | Hostname suggestion                     |
-| --------------- | -------------------------------------------- | ----- | --------------------------------------- |
-| Uptime Kuma     | `louislam/uptime-kuma:2`                     | 3001  | `status.homelab.less`                   |
-| Vaultwarden     | `vaultwarden/server:latest`                  | 80    | `vault.homelab.less`                    |
-| Portainer CE    | `portainer/portainer-ce:latest`              | 9000  | `portainer.homelab.less`                |
-| Dockge          | `louislam/dockge:1`                          | 5001  | `dockge.homelab.less`                   |
-| Homarr          | `ghcr.io/homarr-labs/homarr:latest`          | 7575  | `dash.homelab.less` (replaces Homepage) |
-| Nextcloud       | `nextcloud:29-apache`                        | 80    | `cloud.homelab.less`                    |
-| Jellyfin        | `jellyfin/jellyfin:10.10`                    | 8096  | `media.homelab.less`                    |
-| Navidrome       | `deluan/navidrome:latest`                    | 4533  | `music.homelab.less`                    |
-| Immich          | `ghcr.io/immich-app/immich-server:release`   | 2283  | `photos.homelab.less`                   |
-| Audiobookshelf  | `ghcr.io/advplyr/audiobookshelf:latest`      | 80    | `books.homelab.less`                    |
-| Paperless-ngx   | `ghcr.io/paperless-ngx/paperless-ngx:latest` | 8000  | `docs.homelab.less`                     |
-| Dozzle          | `amir20/dozzle:latest`                       | 8080  | `logs.homelab.less`                     |
-| IT-Tools        | `corentinth/it-tools:latest`                 | 80    | `tools.homelab.less`                    |
-| Authelia        | `authelia/authelia:4.39.x`                   | 9091  | `login.homelab.less`                    |
-| Mealie          | `ghcr.io/mealie-recipes/mealie:latest`       | 9000  | `recipes.homelab.less`                  |
-| Glances         | `nicolargo/glances:latest`                   | 61208 | `stats.homelab.less`                    |
-| Homepage        | `ghcr.io/gethomepage/homepage:latest`        | 3000  | `hp.homelab.less`                       |
-| Trilium Notes   | `zadam/trilium:latest`                       | 8080  | `notes.homelab.less`                    |
-| Linkding        | `sissbruecker/linkding:latest`               | 9090  | `links.homelab.less`                    |
-| Changedetection | `ghcr.io/dgtlmoon/changedetection.io:latest` | 5000  | `watch.homelab.less`                    |
-| n8n             | `n8nio/n8n:latest`                           | 5678  | `n8n.homelab.less`                      |
-| Excalidraw      | `excalidraw/excalidraw:latest`               | 80    | `draw.homelab.less`                     |
-| Filebrowser     | `filebrowser/filebrowser:latest`             | 80    | `files.homelab.less`                    |
+| App          | Image                                               | Internal port             |
+| ------------ | --------------------------------------------------- | ------------------------- |
+| Caddy        | `caddy:2.x`                                         | 80, 443, 2019 (admin API) |
+| Authelia     | `authelia/authelia:4.39.x`                          | 9091                      |
+| Homepage     | `ghcr.io/gethomepage/homepage:latest`               | 3000                      |
+| Stirling-PDF | `stirlingtools/stirling-pdf:latest`                 | 8080                      |
+| Uptime Kuma  | `louislam/uptime-kuma:2`                            | 3001                      |
+| IT-Tools     | `corentinth/it-tools:latest`                        | 80                        |
+| Portainer    | `portainer/portainer-ce:latest`                     | 9000                      |
+| Beszel       | `henrygd/beszel:0.18.x` + `.../beszel-agent:0.18.x` | 8090 (hub)                |
 
 ---
 
@@ -445,10 +437,60 @@ Five things to back up, in priority order:
 3. `./stirling-data/` — user-uploaded PDFs, OCR data, settings. `rsync` or `tar`.
 4. `./uptime-kuma-data/` — monitors, status pages, history. Same.
 5. `./homepage/` — services.yaml, widgets, bookmarks, settings. Same.
+6. `./beszel-hub-data/` — Beszel hub's SQLite (system registry, recorded metrics). `rsync` or `tar`. The agent is stateless — config comes from env, no agent data to back up.
 
 `portainer_data`, `caddy_data`, `caddy_config` are not critical — Portainer re-discovers containers; Caddy regenerates its cert cache on first run.
 
 Recovery: restore the directory or volume, then `docker compose up -d <service>`.
+
+---
+
+## Beszel — first-time setup
+
+The `beszel.homelab.less` vhost **does not** sit behind Authelia. Beszel has its own PocketBase user system, and the in-app installer has to be reachable before any user can log in. mkcert + the Caddy listener (LAN-only) is the only access control on this one vhost. (Every other `*.homelab.less` route still goes through Authelia.)
+
+The hub's data dir also needs a one-time env-var seed (`BESZEL_HUB_USER_EMAIL`) so the initial "temp" superuser's email matches what the installer code checks for. Without it, the installer endpoint returns 403 and account creation silently fails. The seed only takes effect on a **fresh** `beszel-hub-data/` — once the migration has run, the env var is ignored. If the temp email ever drifts out of sync, see [Beszel troubleshooting](#beszel-troubleshooting).
+
+### Steps
+
+1. Start the stack: `docker compose up -d`. The agent will be running but disconnected (visible in logs as `must set TOKEN or TOKEN_FILE` — expected, it will fall back to the unix-socket SSH server).
+2. Open <https://beszel.homelab.less>. On a fresh data dir, Beszel's installer asks you to create an admin user. Do that.
+3. In the Beszel dashboard, click **+ Add System** (top right).
+4. In the dialog:
+   - **Name**: e.g. `homelab-wsl`.
+   - **Host / IP**: `/beszel_socket/beszel.sock` (the shared unix socket the agent listens on — not an IP).
+   - **Port**: leave blank (unix sockets don't use ports).
+   - Click **Add System**. The dialog shows a **public key** and a **TOKEN** to copy.
+5. Paste them into `.env`:
+   - `BESZEL_AGENT_KEY=<public key>` (this is the **hub's** public key — matches the private key in `beszel-hub-data/id_ed25519`. If you extracted it earlier with the `ssh-keygen -y` one-liner in `.env.example`, the value should already match.)
+   - `BESZEL_AGENT_TOKEN=<token>` (currently empty in `.env.example` — just fill it in)
+6. Restart the agent: `docker compose up -d beszel-agent`. The hub dials the socket, the agent registers, the system tile flips green.
+7. The system page now shows the WSL host's CPU/RAM/disk/net and per-container stats for all 9 homelab containers.
+
+### Adding another system / host
+
+To monitor a second box (or a second WSL instance):
+
+- **Inside this compose stack**: duplicate the `beszel-agent` service with a different name, same `/proc`, `/sys`, and `/var/run/docker.sock` mounts (relative to _that_ host), a unique `HUB_URL` pointing to `beszel-hub:8090`, a fresh `KEY`/`TOKEN` (from the next "Add System" dialog), and the same `BESZEL_HUB_USER_EMAIL` env on the hub (no-op if data is already initialized).
+- **Standalone** (any Linux box, no Docker): the install script shown in the UI's "Add System" dialog handles everything — drops the agent binary, creates a `beszel` user, sets up systemd, configures key+token.
+
+### Beszel troubleshooting
+
+- **Installer returns 403 / "Forbidden"** when creating the first admin: the hub's temp superuser email doesn't match what the installer's internal check expects. On a fresh `beszel-hub-data/` the `BESZEL_HUB_USER_EMAIL=_@b.b` env var on the hub seeds it correctly. If the data dir already had a prior start, rename the existing superuser in the DB:
+
+  ```bash
+  docker compose stop beszel-hub
+  docker run --rm -v $PWD/beszel-hub-data:/data:rw --user 0:0 alpine:latest \
+      sh -c "apk add --no-cache sqlite >/dev/null && \
+             sqlite3 /data/data.db \"UPDATE _superusers SET email = '_@b.b';\""
+  docker compose start beszel-hub
+  ```
+
+- **System tile stays red / "Connection failed"**: agent can't register. Check `docker logs beszel-agent`. Common causes: `BESZEL_AGENT_TOKEN` empty or stale; `BESZEL_AGENT_KEY` doesn't match the key shown in the dialog (the dialog's value is what the hub stored at "Add System" time); socket missing (`ls -la beszel-socket/` should show `beszel.sock`).
+- **`/api/realtime` 502s in Caddy log**: SSE timeout. The Beszel vhost has `transport http { read_timeout 360s }` — verify the Caddyfile is intact and reload Caddy.
+- **Wiping `beszel-hub-data/`** resets the user database too. Recreate your admin via the installer afterward. The WSL host agent auto-reconnects (same KEY/TOKEN); no agent changes needed.
+
+The `BESZEL_AGENT_KEY` (public key) is recoverable from the hub's data dir — see `.env.example` for the one-liner that extracts it from `beszel-hub-data/id_ed25519`.
 
 ---
 

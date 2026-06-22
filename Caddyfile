@@ -57,6 +57,9 @@ http://portainer.homelab.less {
 http://login.homelab.less {
     redir https://login.homelab.less{uri} permanent
 }
+http://beszel.homelab.less {
+    redir https://beszel.homelab.less{uri} permanent
+}
 
 # HTTPS: actual reverse proxy
 https://login.homelab.less {
@@ -120,4 +123,21 @@ https://portainer.homelab.less {
     tls /certs/portainer.homelab.less.pem /certs/portainer.homelab.less.key
     import authelia
     reverse_proxy portainer:9000
+}
+
+https://beszel.homelab.less {
+    import secure_headers
+    tls /certs/beszel.homelab.less.pem /certs/beszel.homelab.less.key
+    # No Authelia here — Beszel has its own PocketBase user system and
+    # the first admin has to be created through the in-app installer
+    # before any login can happen. mkcert + the LAN-only Caddy listener
+    # is the only access control. (Other *.homelab.less vhosts still go
+    # through Authelia; only Beszel is exempted.)
+    reverse_proxy beszel-hub:8090 {
+        # SSE / WebSocket connections from the agent + realtime UI
+        # updates need a long read timeout. Default is much shorter.
+        transport http {
+            read_timeout 360s
+        }
+    }
 }
